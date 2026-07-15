@@ -59,7 +59,15 @@
           load();
         };
 
-        li.append(toggle, span);
+        const del = document.createElement('button');
+        del.textContent = 'Delete';
+        del.setAttribute('aria-label', 'Delete ' + t.title);
+        del.onclick = async () => {
+          await fetch('/api/tasks/' + t.id, { method: 'DELETE' });
+          load();
+        };
+
+        li.append(toggle, span, del);
         list.appendChild(li);
       }
     }
