@@ -4,10 +4,11 @@
 # explicit `--repo <name>` flag (which matches an entry's `name` here).
 
 repos:
-  # The bundled demo app — used by the DEMO Jira project (and DEMO-* keys).
-  - name: demo-app
+  # The demo app — its own product repo, targeted by the DEMO Jira project (DEMO-* keys).
+  - name: ai-sdlc-demo-app
     project_keys: [DEMO]
-    path: ./demo-app          # relative to this repo root; use an absolute path for external repos
+    github: aiqalearning/ai-sdlc-demo-app   # owner/repo — commit-status + PR target
+    path: /Users/mohanram/Documents/ai-sdlc-demo-app   # local clone of the product repo
     default_branch: main
     remote: origin
     # How the pipeline builds/boots/tests this repo (mirrored by the Jenkins job).
@@ -15,7 +16,7 @@ repos:
     build: ""                 # nothing to build for the demo app
     start: npm start          # boots on $DEMO_APP_PORT (default 3000)
     test: npx playwright test
-    e2e_dir: tests/e2e
+    e2e_dir: tests/e2e        # app is at the repo root, so tests live here
 
   # Example of an external product repo:
   # - name: billing-service

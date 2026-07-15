@@ -7,7 +7,8 @@
 - `plugins/ai-sdlc/agents/*.md` — subagents skills may delegate to.
 - `plugins/ai-sdlc/config/*.yaml` — repo registry + pipeline gates.
 - `mcp/*` — connector setup docs + example configs.
-- `demo-app/` — runnable target for the pipeline.
+- `tickets/*.md` — local ticket files (simulated Jira).
+- The runnable pipeline target is a separate repo: [aiqalearning/ai-sdlc-demo-app](https://github.com/aiqalearning/ai-sdlc-demo-app).
 
 ## Adding a stage
 
@@ -27,5 +28,5 @@
 
 ```bash
 node bin/validate.js
-cd demo-app && npm test
+# app tests run in the demo app repo: (cd ../ai-sdlc-demo-app && npx playwright test)
 ```

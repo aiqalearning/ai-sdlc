@@ -46,7 +46,7 @@ Registered in the repo-root [`.mcp.json`](../../.mcp.json) as the `jenkins` serv
 
 ## The job
 
-Point the Jenkins job at [`demo-app/Jenkinsfile`](../../demo-app/Jenkinsfile) (or model your product job on it). It must:
+Point the Jenkins job at the target repo's `Jenkinsfile` — for the demo, the root `Jenkinsfile` in [aiqalearning/ai-sdlc-demo-app](https://github.com/aiqalearning/ai-sdlc-demo-app) (or model your product job on it). It must:
 - accept a `BRANCH` string parameter,
 - check out that branch,
 - run the Playwright suite,

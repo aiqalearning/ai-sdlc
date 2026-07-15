@@ -1,6 +1,6 @@
 # Getting started
 
-This guide wires up the four MCP connectors and the Jenkins job, then runs the pipeline against the bundled demo app.
+This guide wires up the four MCP connectors and the Jenkins job, then runs the pipeline against the demo app repo ([aiqalearning/ai-sdlc-demo-app](https://github.com/aiqalearning/ai-sdlc-demo-app)).
 
 ## 1. Prerequisites
 
@@ -46,11 +46,14 @@ Confirm they loaded with `/mcp` inside Claude Code.
 
 ## 4. Demo app + Playwright
 
+The demo app is its own repo — [aiqalearning/ai-sdlc-demo-app](https://github.com/aiqalearning/ai-sdlc-demo-app). Clone it, then register its local path in [`plugins/ai-sdlc/config/repos.yaml`](plugins/ai-sdlc/config/repos.yaml).
+
 ```bash
-cd demo-app
+git clone https://github.com/aiqalearning/ai-sdlc-demo-app.git
+cd ai-sdlc-demo-app
 npm install
 npx playwright install --with-deps chromium
-npm test          # runs the bundled e2e test locally to confirm your setup
+npx playwright test   # runs the e2e suite locally to confirm your setup
 cd ..
 ```
 
@@ -58,10 +61,10 @@ cd ..
 
 Create a Pipeline job (name it to match `JENKINS_JOB`, default `ai-sdlc-e2e`) that:
 
-1. Checks out the branch passed as the `BRANCH` parameter.
-2. Runs `demo-app/Jenkinsfile` (or points its own pipeline at it).
+1. Checks out the branch passed as the `BRANCH` parameter, from the app repo.
+2. Runs the app repo's root `Jenkinsfile` (Pipeline script from SCM).
 
-The bundled [`demo-app/Jenkinsfile`](demo-app/Jenkinsfile) installs deps, boots the app, runs Playwright, and publishes a JUnit + HTML report. The `jenkins-integration` skill triggers this job and polls `/lastBuild/api/json` until it finishes, then reads the test result.
+The [`Jenkinsfile`](https://github.com/aiqalearning/ai-sdlc-demo-app/blob/main/Jenkinsfile) installs deps, boots the app, runs Playwright, and publishes a JUnit + HTML report. The `jenkins-integration` skill triggers this job and polls until it finishes, then reads the test result. See [SETUP.md](SETUP.md) for the exact `config.xml` used here.
 
 ## 6. Run it
 

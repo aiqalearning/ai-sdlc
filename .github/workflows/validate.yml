@@ -7,7 +7,7 @@ on:
 
 jobs:
   validate:
-    name: Validate plugin + demo app
+    name: Validate plugin
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,12 +22,5 @@ jobs:
       - name: Guard hook syntax
         run: python3 -c "import ast; ast.parse(open('bin/hooks/guard-destructive.py').read())"
 
-      - name: Demo app — install
-        working-directory: demo-app
-        run: npm install
-
-      - name: Demo app — Playwright E2E
-        working-directory: demo-app
-        run: |
-          npx playwright install --with-deps chromium
-          npx playwright test
+  # The demo app now lives in its own repo (aiqalearning/ai-sdlc-demo-app) and is
+  # exercised by the pipeline's Jenkins job (ai-sdlc-e2e), not by this workflow.

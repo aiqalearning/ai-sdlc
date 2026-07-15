@@ -1,0 +1,45 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<!--
+  Jenkins job config for `ai-sdlc-e2e` (Pipeline from SCM).
+  Placeholders filled at creation time:
+    __REPO_URL__  → the GitHub repo HTTPS clone URL (e.g. https://github.com/<owner>/ai-sdlc.git)
+    __CRED_ID__   → a Jenkins credential (GitHub username + PAT) so it can clone the private repo
+  The job checks out */${BRANCH} and runs the app repo's root Jenkinsfile.
+-->
+<flow-definition plugin="workflow-job">
+  <description>AI-SDLC E2E — runs the app repo's Playwright suite for a given BRANCH and publishes JUnit results.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>BRANCH</name>
+          <defaultValue>main</defaultValue>
+          <description>Feature branch to test</description>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition" plugin="workflow-cps">
+    <scm class="hudson.plugins.git.GitSCM" plugin="git">
+      <configVersion>2</configVersion>
+      <userRemoteConfigs>
+        <hudson.plugins.git.UserRemoteConfig>
+          <url>__REPO_URL__</url>
+          <credentialsId>__CRED_ID__</credentialsId>
+        </hudson.plugins.git.UserRemoteConfig>
+      </userRemoteConfigs>
+      <branches>
+        <hudson.plugins.git.BranchSpec>
+          <name>*/${BRANCH}</name>
+        </hudson.plugins.git.BranchSpec>
+      </branches>
+      <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+      <extensions/>
+    </scm>
+    <scriptPath>Jenkinsfile</scriptPath>
+    <lightweight>false</lightweight>
+  </definition>
+  <disabled>false</disabled>
+</flow-definition>

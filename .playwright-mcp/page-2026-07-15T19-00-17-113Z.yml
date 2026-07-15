@@ -1,0 +1,12 @@
+- generic [ref=e1]:
+  - heading "Tasks" [level=1] [ref=e2]
+  - generic [ref=e3]:
+    - generic [ref=e4]: New task
+    - textbox "New task" [active] [ref=e5]
+    - button "Add" [ref=e6] [cursor=pointer]
+  - alert [ref=e7]
+  - list "Task list" [ref=e8]:
+    - listitem [ref=e9]:
+      - button "Toggle Prepare the demo" [ref=e10] [cursor=pointer]: Done
+      - generic [ref=e11]: Prepare the demo
+      - button "Delete Prepare the demo" [ref=e12] [cursor=pointer]: Delete

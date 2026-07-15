@@ -11,9 +11,8 @@ shell indirection (variables, pipes, subshells). Always confirm destructive inte
 the user rather than relying on this hook.
 
 Guards:
-  - rm / rm -rf targeting demo-app/ or a registered target repo
-  - git rm targeting demo-app/
-  - find ... -delete inside demo-app/
+  - rm / rm -rf targeting a registered target repo (by directory name)
+  - git rm / find ... -delete inside a target repo
   - echo <path> | xargs rm  (pipeline heuristic)
   - git push --force / -f to main / master   (protects the merge gate)
   - git push directly to main / master        (feature-branch-only rule)
@@ -23,14 +22,19 @@ import json
 import re
 import sys
 
+# Directory names of the pipeline's target product repos, guarded against deletion.
+# Extend this as more repos are registered in plugins/ai-sdlc/config/repos.yaml.
+GUARDED_DIRS = ["ai-sdlc-demo-app", "demo-app"]
+
 DESTRUCTIVE_PATTERNS = [
-    r"\brm\b.*demo-app/",
-    r"\bgit\s+rm\b.*demo-app/",
-    r"\bfind\b.*demo-app/.*-delete\b",
     # force-push to a protected branch
     r"\bgit\s+push\b.*(--force|-f)\b.*\b(main|master)\b",
     r"\bgit\s+push\b.*\b(main|master)\b.*(--force|-f)\b",
 ]
+for _d in GUARDED_DIRS:
+    DESTRUCTIVE_PATTERNS.append(r"\brm\b.*" + re.escape(_d) + r"/")
+    DESTRUCTIVE_PATTERNS.append(r"\bgit\s+rm\b.*" + re.escape(_d) + r"/")
+    DESTRUCTIVE_PATTERNS.append(r"\bfind\b.*" + re.escape(_d) + r"/.*-delete\b")
 
 _COMPILED = [re.compile(p) for p in DESTRUCTIVE_PATTERNS]
 
@@ -53,7 +57,7 @@ def extract_command(payload: dict) -> str:
 def is_destructive(command: str) -> bool:
     if any(p.search(command) for p in _COMPILED):
         return True
-    if "demo-app/" in command and re.search(r"\bxargs\b", command) and re.search(r"\brm\b", command):
+    if any(d + "/" in command for d in GUARDED_DIRS) and re.search(r"\bxargs\b", command) and re.search(r"\brm\b", command):
         return True
     return False
 
@@ -74,7 +78,7 @@ def main():
     if command and is_destructive(command):
         print(
             "[guard-destructive] Potentially destructive or protected-branch operation detected.\n"
-            "This could delete files under demo-app/ or force/push to a protected branch.\n"
+            "This could delete files under a target repo or force/push to a protected branch.\n"
             "Confirm with the user before proceeding. Generated code belongs on feature branches;\n"
             "main is merged only through the /sdlc:ship gate.",
             file=sys.stderr,

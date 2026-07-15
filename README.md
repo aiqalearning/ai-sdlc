@@ -8,7 +8,7 @@ Jira issue  →  generate code  →  verify the app runs  →  generate Playwrig
      →  Jenkins report green  →  merge to main
 ```
 
-Every stage is a Claude Code **skill**, orchestrated by slash **commands**, backed by **MCP** connectors (Jira, GitHub, Jenkins, Playwright). A minimal **demo app** is bundled so you can run the whole loop end-to-end before pointing it at a real product repo.
+Every stage is a Claude Code **skill**, orchestrated by slash **commands**, backed by **MCP** connectors (Jira, GitHub, Jenkins, Playwright). A minimal **demo app** in its own repo ([aiqalearning/ai-sdlc-demo-app](https://github.com/aiqalearning/ai-sdlc-demo-app)) lets you run the whole loop end-to-end before pointing it at a real product repo.
 
 ## The pipeline
 
@@ -25,8 +25,10 @@ Every stage is a Claude Code **skill**, orchestrated by slash **commands**, back
 ## Quick start
 
 ```bash
-# 1. Install the demo app deps and Playwright browsers
-cd demo-app && npm install && npx playwright install --with-deps chromium && cd ..
+# 1. Clone the demo app repo and install its deps + Playwright browsers
+git clone https://github.com/aiqalearning/ai-sdlc-demo-app.git
+cd ai-sdlc-demo-app && npm install && npx playwright install --with-deps chromium && cd ..
+# (register its local path in plugins/ai-sdlc/config/repos.yaml)
 
 # 2. Copy env template and fill in your Jira / Jenkins / GitHub creds
 cp .env.example .env      # then edit
@@ -51,8 +53,11 @@ ai-sdlc/
 │   └── config/                   # repos.yaml, pipeline.yaml
 ├── mcp/                          # per-connector setup docs + example configs
 ├── bin/                          # validator + safety hook
-└── demo-app/                     # runnable Express app + Jenkinsfile + Playwright
+├── tickets/                      # local ticket files (simulated Jira): DEMO-1.md, …
+└── scripts/                      # Jenkins job config template
 ```
+
+The **demo app** is a separate repo: [aiqalearning/ai-sdlc-demo-app](https://github.com/aiqalearning/ai-sdlc-demo-app) (Express app + `Jenkinsfile` + Playwright). This repo is pure tooling.
 
 ## Requirements
 

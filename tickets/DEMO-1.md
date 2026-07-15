@@ -1,7 +1,7 @@
 # DEMO-1 — Let a user delete a task
 
 - **Type:** Story
-- **Status:** To Do
+- **Status:** Done
 - **Project:** DEMO
 - **Components:** demo-app
 

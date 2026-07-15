@@ -23,7 +23,7 @@ Jira issue → code → verify → Playwright E2E → Jenkins run → merge to m
 
 ## Safety
 
-A `PreToolUse` hook (`bin/hooks/guard-destructive.py`, wired in `.claude/settings.json`) discourages destructive shell commands against `demo-app/` and target repos. It is a speed bump, not a security boundary — confirm destructive intent with the user.
+A `PreToolUse` hook (`bin/hooks/guard-destructive.py`, wired in `.claude/settings.json`) discourages destructive shell commands against the registered target repos and protected branches. It is a speed bump, not a security boundary — confirm destructive intent with the user.
 
 ## Validation
 
@@ -31,6 +31,6 @@ A `PreToolUse` hook (`bin/hooks/guard-destructive.py`, wired in `.claude/setting
 node bin/validate.js        # checks plugin.json, marketplace.json, skill/command frontmatter, .mcp.json
 ```
 
-## Demo app
+## Demo app (separate repo)
 
-`demo-app/` is a minimal Express app with a `Jenkinsfile`, `playwright.config.ts`, and an e2e test, so the full loop is runnable without a real product repo. Run its tests with `cd demo-app && npm test`.
+The demo app lives in its **own product repo** — [aiqalearning/ai-sdlc-demo-app](https://github.com/aiqalearning/ai-sdlc-demo-app), a minimal Express app with a root `Jenkinsfile`, `playwright.config.ts`, and an e2e suite — so the full loop is runnable without touching a real product repo. It's registered in `plugins/ai-sdlc/config/repos.yaml` (project key `DEMO`, local clone path). Clone it and run its tests with `npm install && npx playwright test`. This plugin repo is now pure tooling — it holds no app code.

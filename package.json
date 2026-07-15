@@ -4,8 +4,7 @@
   "private": true,
   "description": "AI-assisted SDLC for Claude Code: Jira issue -> code -> verify -> Playwright E2E -> Jenkins -> merge to main.",
   "scripts": {
-    "validate": "node bin/validate.js",
-    "demo:test": "npm --prefix demo-app test"
+    "validate": "node bin/validate.js"
   },
   "keywords": [
     "claude-code",

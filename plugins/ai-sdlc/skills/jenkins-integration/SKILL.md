@@ -41,16 +41,29 @@ Hand the committed suite to Jenkins, which runs it against the branch in a clean
    ```
    Extract pass/fail/skip counts and the names of any failing tests.
 
-6. **Record.** Write `.sdlc/<JIRA-ID>/ci.md`:
+6. **Compute the verdict.** `GREEN` only if `result == SUCCESS` **and** the pass rate meets `jenkins.min_pass_percent` from `pipeline.yaml` (default `100` — `failCount == 0`). Compute pass % = `passCount / (passCount + failCount) * 100`.
+
+7. **Post a GitHub commit status** (enforcement A — lets branch protection require CI even though Jenkins is on localhost and GitHub cannot reach it). For the exact tip SHA, set the `ai-sdlc-e2e` context:
+   ```bash
+   gh api -X POST repos/{owner}/{repo}/statuses/<tip-sha> \
+     -f state=<success|failure> -f context=ai-sdlc-e2e \
+     -f description="<passCount>/<total> passed" \
+     -f target_url="$JENKINS_URL/job/$JENKINS_JOB/<n>/"
+   ```
+   `state=success` only when the verdict is `GREEN`. (Prefer the GitHub MCP if connected.) This is what the required status check on `main` reads.
+
+8. **Record.** Write `.sdlc/<JIRA-ID>/ci.md`:
    - build URL and number,
    - branch + **tip SHA the build ran against**,
-   - `result`,
+   - `result` and **pass %** (e.g. `SUCCESS, 100% (12/12)`),
    - test totals + failing test names,
-   - a one-line verdict: `GREEN` only if `result == SUCCESS`.
+   - the GitHub commit-status state posted for the SHA,
+   - a one-line verdict: `GREEN` only if `result == SUCCESS` and pass % ≥ `min_pass_percent`.
 
 ## Guardrails
 
-- `UNSTABLE`, `FAILURE`, `ABORTED`, `TIMEOUT`, or a missing report all mean **not green**. Never round up to green.
+- `UNSTABLE`, `FAILURE`, `ABORTED`, `TIMEOUT`, a missing report, or pass % below `min_pass_percent` all mean **not green**. Never round up to green.
+- The commit status you post must match the verdict — never post `success` for a non-green build.
 - Do not merge here — that is stage 6. This skill only produces the verdict.
 - Never print `JENKINS_TOKEN`. Use `--user` with the env var directly; keep it out of logs and `ci.md`.
 
