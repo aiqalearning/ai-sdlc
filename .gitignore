@@ -24,3 +24,7 @@ build/
 # Pipeline working state
 .sdlc/
 work/
+
+# Playwright MCP session snapshots + ad-hoc screenshots
+.playwright-mcp/
+*.png
