@@ -15,7 +15,7 @@
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
-const { spawn } = require('node:child_process');
+const { spawn, execFile } = require('node:child_process');
 const express = require('express');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
@@ -68,11 +68,53 @@ const STAGES = [
 
 function readIf(p) { try { return fs.readFileSync(p, 'utf8'); } catch { return null; } }
 
+// The target repo's owner/name, from repos.yaml (`github:` field).
+function repoSlug() {
+  const y = readIf(path.join(REPO_ROOT, 'plugins/ai-sdlc/config/repos.yaml')) || '';
+  const m = y.match(/github:\s*([^\s#]+)/);
+  return m ? m[1] : null;
+}
+
+// Look up the PR for a feature branch on GitHub (open OR merged) via gh, cached ~12s.
+// Needed because the ship stage opens the PR but PAUSES for approval, so shipped.md
+// (which carries the URL) isn't written until after merge.
+const prCache = new Map(); // ticket -> { url, state, ts }
+function lookupPr(ticket, branch) {
+  return new Promise((resolve) => {
+    const slug = repoSlug();
+    if (!branch || !slug) return resolve(null);
+    const cached = prCache.get(ticket);
+    if (cached && Date.now() - cached.ts < 12000) return resolve(cached);
+    execFile('gh',
+      ['pr', 'list', '--repo', slug, '--head', branch, '--state', 'all', '--json', 'url,state,number', '--limit', '1'],
+      { env: loadEnv(), timeout: 8000 },
+      (err, stdout) => {
+        if (err) return resolve(cached || null);
+        try {
+          const arr = JSON.parse(stdout);
+          const pr = arr[0]
+            ? { url: arr[0].url, state: String(arr[0].state || '').toLowerCase(), ts: Date.now() }
+            : { url: null, ts: Date.now() };
+          prCache.set(ticket, pr);
+          resolve(pr);
+        } catch { resolve(cached || null); }
+      });
+  });
+}
+
 function statusFor(id) {
   const dir = path.join(SDLC_DIR, id);
+  const shippedBody = readIf(path.join(dir, 'shipped.md')) || '';
+  // ship is only "done" when actually MERGED — shipped.md may instead document a pause
+  // (PR opened, awaiting approval). Detect the merged case explicitly.
+  const merged = /shipped|merged/i.test(shippedBody) && /[0-9a-f]{40}|merge commit|MERGED to main/i.test(shippedBody) && !/PAUSED|NOT merged/i.test(shippedBody);
+  const shipPaused = shippedBody !== '' && !merged; // PR opened but not merged yet
   const stages = STAGES.map((s) => {
     const body = readIf(path.join(dir, s.artifact));
-    return { ...s, done: body != null };
+    let done = body != null;
+    let paused = false;
+    if (s.id === 'ship') { done = merged; paused = shipPaused; }
+    return { ...s, done, paused };
   });
   // Pull a few headline facts out of the artifacts for the links panel.
   const ci = readIf(path.join(dir, 'ci.md')) || '';
@@ -91,6 +133,7 @@ function statusFor(id) {
 
 // --- In-memory run registry ---
 const runs = new Map(); // runId -> { ticket, proc, events:[], clients:Set, done, exitCode }
+const latestRunByTicket = new Map(); // ticket -> runId (so switching tickets restores its log)
 
 function pushEvent(run, ev) {
   run.lastEventAt = Date.now();
@@ -140,6 +183,25 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true, claudeBin: CLAUDE_BIN, repo: REPO_ROOT });
 });
 
+// Liveness of the three stack services (checked server-side to dodge browser CORS).
+app.get('/api/services', async (_req, res) => {
+  const http = require('node:http');
+  const ping = (url) => new Promise((resolve) => {
+    const r = http.get(url, { timeout: 2500 }, (resp) => { resp.destroy(); resolve(true); });
+    r.on('error', () => resolve(false));
+    r.on('timeout', () => { r.destroy(); resolve(false); });
+  });
+  const [appUp, jenkinsUp] = await Promise.all([
+    ping('http://localhost:3200/health'),
+    ping('http://localhost:8080/login'),
+  ]);
+  res.json({
+    app: { up: appUp, url: 'http://localhost:3200' },
+    jenkins: { up: jenkinsUp, url: 'http://localhost:8080' },
+    dashboard: { up: true, url: 'http://localhost:4000' },
+  });
+});
+
 app.get('/api/tickets', (_req, res) => {
   let ids = [];
   try {
@@ -150,35 +212,85 @@ app.get('/api/tickets', (_req, res) => {
   res.json({ tickets: ids });
 });
 
-app.get('/api/status/:id', (req, res) => {
-  res.json(statusFor(req.params.id));
+app.get('/api/status/:id', async (req, res) => {
+  const s = statusFor(req.params.id);
+  // If ship hasn't recorded a merged PR yet, surface the open PR live from GitHub.
+  if (!s.facts.pr && s.facts.branch) {
+    const pr = await lookupPr(req.params.id, s.facts.branch);
+    if (pr && pr.url) { s.facts.pr = pr.url; s.facts.prState = pr.state; }
+  }
+  res.json(s);
+});
+
+app.get('/api/latest-run/:ticket', (req, res) => {
+  res.json({ runId: latestRunByTicket.get(req.params.ticket) || null });
 });
 
 app.post('/api/run', (req, res) => {
   if (!CLAUDE_BIN) return res.status(500).json({ error: 'Claude Code binary not found (set CLAUDE_BIN).' });
   const ticket = String(req.body?.ticket || '').trim();
   if (!/^[A-Z]+-\d+$/.test(ticket)) return res.status(400).json({ error: 'Invalid ticket key.' });
-  const stopBeforeShip = req.body?.stopBeforeShip !== false; // default: dry-run through CI, no merge
+  const shipOnly = req.body?.shipOnly === true;       // merge an already-approved PR (stage 6 only)
+  // Default: run THROUGH ship — which opens the PR and PAUSES at approval (never auto-merges).
+  // Only stops before ship if explicitly asked. The merge is always the separate "Merge" action.
+  const stopBeforeShip = !shipOnly && req.body?.stopBeforeShip === true;
+
+  // Guard: if the PR is open and only awaiting approval, re-running the pipeline would push
+  // new commits — invalidating the CI status AND dismissing the approval (endless churn).
+  const st0 = statusFor(ticket);
+  const shipPaused = st0.stages.find((s) => s.id === 'ship')?.paused;
+  const codeDone = st0.stages.slice(0, 5).every((s) => s.done);
+  if (!shipOnly && shipPaused && codeDone) {
+    return res.status(409).json({
+      error: 'PR is open and awaiting approval. Re-running would push new commits and reset the approval + CI. ' +
+             'Approve the PR, then click “⑥ Merge approved PR”.',
+    });
+  }
+
+  // What's already done? Resume from the first incomplete stage instead of redoing everything.
+  const done = st0.stages.filter((s) => s.done).map((s) => s.id);
+  const doneNote = done.length
+    ? `Stages already complete (their artifacts exist in .sdlc/${ticket}/): ${done.join(', ')}. ` +
+      `RESUME from the first incomplete stage — do NOT redo a completed stage unless its inputs changed. `
+    : '';
+
   // Headless `claude -p` does NOT recognize plugin slash commands, so drive the pipeline
   // by telling the agent to follow the orchestrator + stage SKILL.md files directly.
-  const stageList = `jira-intake, code-generation, app-verification, playwright-automation, jenkins-integration${stopBeforeShip ? '' : ', merge-gate'}`;
-  const prompt =
-    `Run the AI-SDLC pipeline for Jira ticket ${ticket}. Execute it by following the ` +
-    `procedure in plugins/ai-sdlc/skills/sdlc-orchestrator/SKILL.md and each stage skill it ` +
-    `references (${stageList}). The ticket is the local file tickets/${ticket}.md; resolve the ` +
-    `target repo from plugins/ai-sdlc/config/repos.yaml. ` +
-    (stopBeforeShip
-      ? `Stop BEFORE the ship stage — do not open or merge a PR. `
-      : `Run all stages through ship. `) +
-    `Work fully autonomously; do not ask questions. Write each stage's artifact under .sdlc/${ticket}/.`;
+  let prompt, metaLabel;
+  if (shipOnly) {
+    // Stage 6 only: the human has approved the PR; merge it.
+    prompt =
+      `Complete stage 6 (ship) for Jira ticket ${ticket} by following plugins/ai-sdlc/skills/merge-gate/SKILL.md. ` +
+      `Resolve the repo from plugins/ai-sdlc/config/repos.yaml. Steps: ` +
+      `(1) Find the open PR for the feature branch and its CURRENT head SHA. ` +
+      `(2) If the required 'ai-sdlc-e2e' commit status is missing or not on the current head, first re-run CI for ` +
+      `the branch tip via plugins/ai-sdlc/skills/jenkins-integration/SKILL.md and post the status for that exact SHA. ` +
+      `Do NOT modify code or push any commits — only build/test the existing tip. ` +
+      `(3) Re-verify the full gate (green + 100% pass + fresh SHA + PR approved + mergeable). ` +
+      `(4) If it holds, merge the PR to main, delete the branch, write .sdlc/${ticket}/shipped.md, transition the ticket to Done. ` +
+      `If it does not hold (e.g. not approved), STOP and report exactly which check failed. ` +
+      `Do NOT re-run stages 1–4. Work autonomously; do not ask questions.`;
+    metaLabel = `▶ ship ${ticket} — merge approved PR (stage 6 only)`;
+  } else {
+    const stageList = `jira-intake, code-generation, app-verification, playwright-automation, jenkins-integration${stopBeforeShip ? '' : ', merge-gate'}`;
+    prompt =
+      `Run the AI-SDLC pipeline for Jira ticket ${ticket}. ${doneNote}Follow the procedure in ` +
+      `plugins/ai-sdlc/skills/sdlc-orchestrator/SKILL.md and each stage skill it references (${stageList}). ` +
+      `The ticket is the local file tickets/${ticket}.md; resolve the target repo from ` +
+      `plugins/ai-sdlc/config/repos.yaml. ` +
+      (stopBeforeShip ? `Stop BEFORE the ship stage — do not open or merge a PR. ` : `Run through ship. `) +
+      `Work fully autonomously; do not ask questions. Write each stage's artifact under .sdlc/${ticket}/.`;
+    metaLabel = `▶ ${done.length ? 'resume' : 'run'} ${ticket}${stopBeforeShip ? ' (dry run — stop before ship)' : ''}${done.length ? ` · skipping ${done.join(', ')}` : ''}`;
+  }
 
   const runId = `${ticket}-${runs.size + 1}`;
   const args = ['-p', prompt, '--output-format', 'stream-json', '--verbose', '--permission-mode', 'bypassPermissions'];
   const proc = spawn(CLAUDE_BIN, args, { cwd: REPO_ROOT, env: loadEnv(), stdio: ['ignore', 'pipe', 'pipe'] });
   const run = { ticket, proc, events: [], clients: new Set(), done: false, exitCode: null, startedAt: Date.now(), lastEventAt: Date.now() };
   runs.set(runId, run);
+  latestRunByTicket.set(ticket, runId);
 
-  pushEvent(run, { kind: 'meta', text: `▶ pipeline for ${ticket}${stopBeforeShip ? ' (dry run — stop before ship)' : ''} · via headless Claude Code` });
+  pushEvent(run, { kind: 'meta', text: `${metaLabel} · via headless Claude Code` });
 
   // Heartbeat: while alive and quiet (e.g. inside a long `playwright test` or Jenkins poll),
   // emit a "still working" tick so the UI never looks frozen.

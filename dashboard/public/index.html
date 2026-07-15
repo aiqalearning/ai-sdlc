@@ -27,7 +27,8 @@
   select,button{font-family:var(--sans);font-size:14px;padding:8px 12px;border-radius:8px;border:1px solid var(--hair);background:var(--panel);color:var(--ink)}
   button{cursor:pointer;font-weight:600}
   button.run{background:var(--accent);color:#1a1205;border-color:var(--accent)}
-  button.run:disabled{opacity:.5;cursor:not-allowed}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  button.merge{color:var(--go);border-color:var(--go)}
   button.stop{color:var(--stop)}
   label.chk{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px}
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:8px}
@@ -42,7 +43,9 @@
   .track{width:2px;flex:1;background:var(--idle);min-height:16px}
   .stage.done .node{border-color:var(--go);background:var(--go-wash);color:var(--go)}
   .stage.active .node{border-color:var(--accent);background:transparent;color:var(--accent-ink);animation:pulse 1.1s infinite}
+  .stage.paused .node{border-color:var(--am);background:transparent;color:var(--am)}
   .stage.done .track{background:var(--go)}
+  .badge.paused{background:transparent;border:1px solid var(--am);color:var(--accent-ink)}
   @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(240,180,41,.5)}50%{box-shadow:0 0 0 6px rgba(240,180,41,0)}}
   .sbody{padding-bottom:14px}
   .sbody .st{font-weight:640;font-size:15px}
@@ -63,20 +66,30 @@
   .links a{color:var(--accent-ink);word-break:break-all}
   .links .k{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
   .empty{color:var(--muted);font-size:13px}
+  .svcbar{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;font-family:var(--mono);font-size:12px}
+  .svc{display:inline-flex;align-items:center;gap:6px;color:var(--muted)}
+  .svc .dot{width:9px;height:9px;border-radius:50%;background:var(--idle)}
+  .svc.up .dot{background:var(--go)} .svc.down .dot{background:var(--stop)}
+  .svc a{color:var(--accent-ink);text-decoration:none}
 </style>
 </head>
 <body>
 <header><div class="wrap">
   <span class="eyebrow">AI-SDLC · pipeline control</span>
   <h1>Drive the pipeline</h1>
-  <div class="sub">Pick a ticket and run it. This triggers the real Claude Code pipeline (<span style="font-family:var(--mono)">/sdlc:run</span>) — same skills, same Jenkins, same gate.</div>
+  <div class="sub"><b>Run / Resume</b> takes a ticket through stages 1–5, opens the PR, and pauses at <span style="color:var(--am)">awaiting approval</span> — it never merges. After a reviewer approves, <b>⑥ Merge approved PR</b> performs the gated merge. Same skills, Jenkins, and gate as <span style="font-family:var(--mono)">/sdlc:run</span>.</div>
+  <div class="svcbar" id="svcbar">
+    <span class="svc" id="svc-app"><span class="dot"></span><a href="http://localhost:3200" target="_blank">app :3200</a></span>
+    <span class="svc" id="svc-jenkins"><span class="dot"></span><a href="http://localhost:8080" target="_blank">jenkins :8080</a></span>
+    <span class="svc" id="svc-dashboard"><span class="dot"></span><a href="http://localhost:4000" target="_blank">dashboard :4000</a></span>
+  </div>
 </div></header>
 
 <div class="wrap">
   <div class="controls">
     <select id="ticket"></select>
-    <label class="chk"><input type="checkbox" id="dry" checked /> dry run (stop before ship)</label>
-    <button class="run" id="runBtn">▶ Run pipeline</button>
+    <button class="run" id="runBtn" title="Runs stages 1–5, opens the PR, and pauses at approval — never merges">▶ Run / Resume</button>
+    <button class="merge" id="mergeBtn" title="Runs only stage 6 to merge an already-approved PR">⑥ Merge approved PR</button>
     <button class="stop" id="stopBtn" disabled>■ Stop</button>
     <span id="binWarn" class="empty"></span>
   </div>
@@ -113,12 +126,13 @@ const logEl=$('#log'), trackerEl=$('#tracker'), linksEl=$('#links');
 
 function renderTracker(stages, activeIdx){
   trackerEl.innerHTML = stages.map((s,i)=>{
-    const done=s.done, active=(i===activeIdx && !done);
-    const cls=done?'done':(active?'active':'');
-    const badge=done?'<span class="badge done">done</span>':(active?'<span class="badge active">running</span>':'');
+    const done=s.done, paused=s.paused, active=(i===activeIdx && !done && !paused);
+    const cls=done?'done':paused?'paused':(active?'active':'');
+    const badge=done?'<span class="badge done">done</span>':paused?'<span class="badge paused">awaiting approval</span>':(active?'<span class="badge active">running</span>':'');
+    const sym=done?'✓':paused?'⏸':(i+1);
     const last=i===stages.length-1;
     return `<div class="stage ${cls}">
-      <div class="rail"><div class="node">${done?'✓':i+1}</div>${last?'':'<div class="track"></div>'}</div>
+      <div class="rail"><div class="node">${sym}</div>${last?'':'<div class="track"></div>'}</div>
       <div class="sbody"><div class="st">${s.label}${badge}</div><div class="cmd">${STAGES[i].cmd}</div></div>
     </div>`;
   }).join('');
@@ -128,7 +142,7 @@ function renderLinks(f){
   if(f.branch) rows.push(['branch',f.branch]);
   if(f.verdict) rows.push(['ci verdict', (f.passRate?`${f.verdict} · ${f.passRate}`:f.verdict)]);
   if(f.jenkins) rows.push(['jenkins',`<a href="${f.jenkins}" target="_blank">${f.jenkins}</a>`]);
-  if(f.pr) rows.push(['pull request',`<a href="${f.pr}" target="_blank">${f.pr}</a>`]);
+  if(f.pr) rows.push([`pull request${f.prState?' · '+f.prState:''}`,`<a href="${f.pr}" target="_blank">${f.pr}</a>`]);
   if(f.mergeSha) rows.push(['merge',f.mergeSha.slice(0,10)]);
   linksEl.innerHTML = rows.length? rows.map(([k,v])=>`<div><span class="k">${k}</span><br>${v}</div>`).join('')
     : '<span class="empty">No artifacts yet.</span>';
@@ -164,25 +178,47 @@ async function loadTickets(){
   if(!h.claudeBin) $('#binWarn').textContent='⚠ Claude binary not found — set CLAUDE_BIN';
   currentTicket=$('#ticket').value; pollStatus();
 }
-$('#ticket').addEventListener('change',()=>{currentTicket=$('#ticket').value; logEl.innerHTML='<span class="empty">Idle.</span>'; pollStatus();});
-
-$('#runBtn').addEventListener('click', async ()=>{
-  const ticket=$('#ticket').value;
-  const dry=$('#dry').checked;
+async function attachLogForTicket(t){
+  if(es){ es.close(); es=null; }
+  if(hbEl){ hbEl.remove(); hbEl=null; }
   logEl.innerHTML='';
-  running=true; $('#runBtn').disabled=true; $('#stopBtn').disabled=false;
-  const r=await (await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ticket,stopBeforeShip:dry})})).json();
-  if(r.error){ addLog({kind:'stderr',text:r.error}); running=false; $('#runBtn').disabled=false; $('#stopBtn').disabled=true; return; }
-  currentTicket=ticket;
+  const {runId}=await (await fetch(`/api/latest-run/${t}`)).json();
+  if(runId){
+    window._run=runId;
+    es=new EventSource(`/api/events/${runId}`);   // backfills this ticket's full log
+    es.onmessage=(m)=>{ const ev=JSON.parse(m.data); addLog(ev); if(ev.kind==='done'){ setRunning(false); pollStatus(); } };
+  } else {
+    logEl.innerHTML=`<span class="empty">No run yet for ${t}. Hit Run / Resume.</span>`;
+  }
+}
+$('#ticket').addEventListener('change', ()=>{ currentTicket=$('#ticket').value; pollStatus(); attachLogForTicket(currentTicket); });
+
+function setRunning(on){ running=on; $('#runBtn').disabled=on; $('#mergeBtn').disabled=on; $('#stopBtn').disabled=!on; }
+async function startRun(body){
+  const ticket=$('#ticket').value;
+  logEl.innerHTML=''; setRunning(true); currentTicket=ticket;
+  const r=await (await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ticket,...body})})).json();
+  if(r.error){ addLog({kind:'stderr',text:r.error}); setRunning(false); return; }
   if(es) es.close();
   es=new EventSource(`/api/events/${r.runId}`);
-  es.onmessage=(m)=>{ const ev=JSON.parse(m.data); addLog(ev); if(ev.kind==='done'){ running=false; $('#runBtn').disabled=false; $('#stopBtn').disabled=true; pollStatus(); } };
+  es.onmessage=(m)=>{ const ev=JSON.parse(m.data); addLog(ev); if(ev.kind==='done'){ setRunning(false); pollStatus(); } };
   if(statusTimer) clearInterval(statusTimer);
   statusTimer=setInterval(pollStatus, 2500);
   window._run=r.runId;
-});
+}
+// Run / Resume: runs through ship, which opens the PR and PAUSES at approval (never merges).
+// Resumes from the first incomplete stage (server skips stages whose artifacts exist).
+$('#runBtn').addEventListener('click', ()=> startRun({}));
+// Merge approved PR: runs ONLY stage 6 (merge-gate) — use after a reviewer approves the PR.
+$('#mergeBtn').addEventListener('click', ()=> startRun({shipOnly:true}));
 $('#stopBtn').addEventListener('click', async ()=>{ if(window._run) await fetch(`/api/stop/${window._run}`,{method:'POST'}); });
 
+async function pollServices(){
+  try{ const s=await (await fetch('/api/services')).json();
+    for(const k of ['app','jenkins','dashboard']){ const el=document.getElementById('svc-'+k); if(el){ el.classList.toggle('up',!!s[k].up); el.classList.toggle('down',!s[k].up);} }
+  }catch{}
+}
+pollServices(); setInterval(pollServices,5000);
 loadTickets();
 setInterval(pollStatus, 4000);
 </script>

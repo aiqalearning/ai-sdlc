@@ -1,25 +1,23 @@
-# DEMO-1 — Let a user delete a task
+# DEMO-1 — Edit a task's title
 
 - **Type:** Story
-- **Status:** Done
+- **Status:** To Do
 - **Project:** DEMO
 - **Components:** demo-app
 
 ## Description
 
-The task list can add and complete tasks, but there is no way to remove one. Users
-end up with a cluttered list of tasks they no longer care about. Add the ability to
-delete a task from the list.
+Users sometimes mistype a task or want to refine its wording. Let a user edit an
+existing task's title in place, without deleting and re-adding it.
 
 ## Acceptance Criteria
 
-- AC1: Each task row has a **Delete** control labelled for that task (e.g. an accessible
-  name like "Delete <title>"). Clicking it removes that task from the list.
-- AC2: Deleting one task leaves the other tasks untouched and still visible.
-- AC3: After the last task is deleted, the list is empty (no task rows remain).
+- AC1: Each task row has an **Edit** control (accessible name like "Edit <title>"). Activating it lets the user change the title and save it; the updated title is then shown in the list.
+- AC2: Saving an empty/whitespace-only title is rejected — the task keeps its original title and a validation message is shown.
+- AC3: Editing one task's title does not change any other task.
 
 ## Notes
 
-- Backend: a `DELETE /api/tasks/:id` endpoint that removes the task and returns `204`;
-  deleting an unknown id returns `404`.
-- Keep the existing add / toggle behaviour working.
+- Backend: `PATCH /api/tasks/:id` with `{ "title": "<new>" }` → `200` with the updated task; `400` if the title is empty; `404` if the id is unknown.
+- Give the edit control and its input stable, accessible locators (e.g. `aria-label`, `data-testid`).
+- Keep the existing add / toggle / delete / clear-completed / remaining-count behaviour intact.
