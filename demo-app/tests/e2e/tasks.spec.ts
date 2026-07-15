@@ -4,6 +4,12 @@ import { test, expect } from '@playwright/test';
 // one describe/test area per acceptance criterion, role/label locators,
 // web-first assertions, no arbitrary sleeps.
 
+// The app keeps a single in-memory task list; start every test from a clean slate.
+test.beforeEach(async ({ request }) => {
+  const tasks = await (await request.get('/api/tasks')).json();
+  for (const t of tasks) await request.delete(`/api/tasks/${t.id}`);
+});
+
 test.describe('AC1 — a user can add a task', () => {
   test('adding a task shows it in the list', async ({ page }) => {
     await page.goto('/');

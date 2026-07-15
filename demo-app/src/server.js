@@ -40,6 +40,14 @@ app.post('/api/tasks/:id/toggle', (req, res) => {
   res.json(task);
 });
 
+app.delete('/api/tasks/:id', (req, res) => {
+  const id = Number(req.params.id);
+  const idx = tasks.findIndex((t) => t.id === id);
+  if (idx === -1) return res.status(404).json({ error: 'Not found' });
+  tasks.splice(idx, 1);
+  res.status(204).end();
+});
+
 // Only listen when run directly (tests import nothing, but keep it clean).
 if (require.main === module) {
   app.listen(PORT, () => {
