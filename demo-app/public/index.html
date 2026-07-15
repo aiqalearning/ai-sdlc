@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI-SDLC Demo — Tasks</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 3rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.4rem; }
+    form { display: flex; gap: .5rem; margin: 1rem 0; }
+    input[type="text"] { flex: 1; padding: .5rem; }
+    button { padding: .5rem .9rem; cursor: pointer; }
+    ul { list-style: none; padding: 0; }
+    li { display: flex; align-items: center; gap: .5rem; padding: .4rem 0; border-bottom: 1px solid #eee; }
+    li.done span { text-decoration: line-through; color: #888; }
+    #error { color: #b00020; min-height: 1.2rem; }
+  </style>
+</head>
+<body>
+  <h1>Tasks</h1>
+
+  <form id="task-form">
+    <label for="title" style="position:absolute;left:-9999px;">New task</label>
+    <input id="title" name="title" type="text" placeholder="New task" aria-label="New task" />
+    <button type="submit">Add</button>
+  </form>
+
+  <p id="error" role="alert"></p>
+
+  <ul id="tasks" aria-label="Task list"></ul>
+
+  <script>
+    const form = document.getElementById('task-form');
+    const input = document.getElementById('title');
+    const list = document.getElementById('tasks');
+    const error = document.getElementById('error');
+
+    async function load() {
+      const res = await fetch('/api/tasks');
+      const tasks = await res.json();
+      render(tasks);
+    }
+
+    function render(tasks) {
+      list.innerHTML = '';
+      for (const t of tasks) {
+        const li = document.createElement('li');
+        li.className = t.done ? 'done' : '';
+        li.dataset.testid = 'task';
+
+        const span = document.createElement('span');
+        span.textContent = t.title;
+
+        const toggle = document.createElement('button');
+        toggle.textContent = t.done ? 'Undo' : 'Done';
+        toggle.setAttribute('aria-label', 'Toggle ' + t.title);
+        toggle.onclick = async () => {
+          await fetch('/api/tasks/' + t.id + '/toggle', { method: 'POST' });
+          load();
+        };
+
+        li.append(toggle, span);
+        list.appendChild(li);
+      }
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      error.textContent = '';
+      const title = input.value.trim();
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        error.textContent = body.error || 'Something went wrong';
+        return;
+      }
+      input.value = '';
+      load();
+    });
+
+    load();
+  </script>
+</body>
+</html>

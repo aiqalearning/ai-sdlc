@@ -1,0 +1,23 @@
+{
+  "name": "ai-sdlc",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI-assisted SDLC for Claude Code: Jira issue -> code -> verify -> Playwright E2E -> Jenkins -> merge to main.",
+  "scripts": {
+    "validate": "node bin/validate.js",
+    "demo:test": "npm --prefix demo-app test"
+  },
+  "keywords": [
+    "claude-code",
+    "sdlc",
+    "jira",
+    "playwright",
+    "jenkins",
+    "mcp",
+    "automation"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  }
+}

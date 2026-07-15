@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/bin/hooks/guard-destructive.py\""
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "ai-sdlc@ai-sdlc-marketplace": true
+  }
+}

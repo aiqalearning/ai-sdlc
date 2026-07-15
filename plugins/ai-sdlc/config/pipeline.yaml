@@ -1,0 +1,69 @@
+# Pipeline gates, Jenkins wiring, and merge policy.
+# Read by the sdlc-orchestrator and the individual stage skills.
+
+version: 1
+
+# Ordered stages. `gate` is the condition that must hold to advance.
+stages:
+  - id: intake
+    skill: jira-intake
+    artifact: spec.md
+    gate: "spec.md exists with >= 1 acceptance criterion"
+  - id: implement
+    skill: code-generation
+    artifact: implement.md
+    gate: "feature branch committed; target project still builds"
+  - id: verify
+    skill: app-verification
+    artifact: verify.md
+    gate: "overall PASS"
+  - id: automate
+    skill: playwright-automation
+    artifact: automation.md
+    gate: "suite green locally; every acceptance criterion covered"
+  - id: run-ci
+    skill: jenkins-integration
+    artifact: ci.md
+    gate: "verdict GREEN (Jenkins result == SUCCESS)"
+  - id: ship
+    skill: merge-gate
+    artifact: shipped.md
+    gate: "fresh green for branch tip at min_pass_percent AND PR approved; PR merged to main"
+
+jenkins:
+  # Job triggered in stage 5. Override per-project if needed.
+  default_job: ai-sdlc-e2e
+  branch_param: BRANCH          # buildWithParameters key that receives the feature branch
+  poll_interval_seconds: 10
+  overall_timeout_minutes: 30
+  # Only this Jenkins result counts as green.
+  green_result: SUCCESS
+  # Minimum test pass rate (percent) required to advance. 100 = every test must pass;
+  # combined with green_result this means the build is SUCCESS AND no test failed.
+  min_pass_percent: 100
+
+merge:
+  # main is advanced only through the stage-6 gate.
+  strategy: squash              # squash | merge | rebase
+  delete_branch_after_merge: true
+  require_fresh_report: true    # Jenkins-tested SHA must equal the branch tip
+  protected_branches: [main, master]
+  # Human approval gate. When true, stage 6 opens the PR and STOPS; the merge only
+  # proceeds once a required reviewer has approved the PR in GitHub. Enforce this
+  # server-side too via branch protection (see below) so it cannot be skipped.
+  require_pr_approval: true
+  required_approvals: 1         # number of approving reviews the PR must carry
+  block_on_changes_requested: true   # any "changes requested" review blocks the merge
+
+# Branch protection expected on each protected branch (configure once in GitHub).
+# The pipeline relies on these being enforced server-side, not just checked client-side.
+branch_protection:
+  require_pull_request_reviews: true
+  required_approving_review_count: 1
+  require_status_checks: true
+  required_status_checks: [ai-sdlc-e2e]   # the Jenkins check that must be green
+
+jira:
+  # Optional: transition + comment on merge. Skipped if the Jira MCP is unavailable.
+  transition_on_merge: "Done"
+  comment_on_merge: true

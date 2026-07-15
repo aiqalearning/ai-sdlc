@@ -1,0 +1,8 @@
+# Code owners for ai-sdlc.
+# Replace the placeholder with your GitHub username or team, e.g. @your-username.
+
+*                       @OWNER
+
+# Pipeline logic — treat changes with extra care.
+/plugins/ai-sdlc/       @OWNER
+/bin/                   @OWNER

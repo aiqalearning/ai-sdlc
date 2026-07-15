@@ -1,0 +1,30 @@
+# Target repo registry.
+# Maps a Jira project key to the product repo the pipeline operates on.
+# `/sdlc:*` commands resolve the repo from the issue's project key, or from an
+# explicit `--repo <name>` flag (which matches an entry's `name` here).
+
+repos:
+  # The bundled demo app — used by the DEMO Jira project (and DEMO-* keys).
+  - name: demo-app
+    project_keys: [DEMO]
+    path: ./demo-app          # relative to this repo root; use an absolute path for external repos
+    default_branch: main
+    remote: origin
+    # How the pipeline builds/boots/tests this repo (mirrored by the Jenkins job).
+    install: npm install
+    build: ""                 # nothing to build for the demo app
+    start: npm start          # boots on $DEMO_APP_PORT (default 3000)
+    test: npx playwright test
+    e2e_dir: tests/e2e
+
+  # Example of an external product repo:
+  # - name: billing-service
+  #   project_keys: [BILL, PAY]
+  #   path: /Users/you/code/billing-service
+  #   default_branch: main
+  #   remote: origin
+  #   install: npm ci
+  #   build: npm run build
+  #   start: npm run start:ci
+  #   test: npx playwright test
+  #   e2e_dir: e2e

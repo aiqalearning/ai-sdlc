@@ -1,0 +1,32 @@
+{
+  "mcpServers": {
+    "jira": {
+      "command": "npx",
+      "args": ["-y", "mcp-atlassian"],
+      "env": {
+        "JIRA_URL": "${env:JIRA_URL}",
+        "JIRA_EMAIL": "${env:JIRA_EMAIL}",
+        "JIRA_TOKEN": "${env:JIRA_TOKEN}"
+      }
+    },
+    "github": {
+      "url": "https://api.githubcopilot.com/mcp/",
+      "env": {
+        "GITHUB_TOKEN": "${env:GITHUB_TOKEN}"
+      }
+    },
+    "jenkins": {
+      "command": "uvx",
+      "args": ["mcp-jenkins"],
+      "env": {
+        "JENKINS_URL": "${env:JENKINS_URL}",
+        "JENKINS_USERNAME": "${env:JENKINS_USER}",
+        "JENKINS_PASSWORD": "${env:JENKINS_TOKEN}"
+      }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"]
+    }
+  }
+}

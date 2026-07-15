@@ -1,0 +1,21 @@
+{
+  "name": "ai-sdlc",
+  "version": "0.1.0",
+  "description": "AI-assisted SDLC: drives a Jira issue to a merged PR. Stages: intake (pull Jira requirement + acceptance criteria), implement (generate code on a feature branch), verify (build & boot the app), automate (generate Playwright E2E for the acceptance criteria), run-ci (trigger Jenkins to run the automation and poll the report), ship (merge to main only when the Jenkins report is green). Commands: /sdlc:intake, /sdlc:implement, /sdlc:verify, /sdlc:automate, /sdlc:run-ci, /sdlc:ship, /sdlc:run. Skills: jira-intake, code-generation, app-verification, playwright-automation, jenkins-integration, merge-gate, sdlc-orchestrator. Agents: code-implementer, qa-automation-engineer, release-manager.",
+  "author": {
+    "name": "AI-SDLC"
+  },
+  "keywords": [
+    "sdlc",
+    "jira",
+    "playwright",
+    "jenkins",
+    "code-generation",
+    "e2e",
+    "ci",
+    "mcp"
+  ],
+  "skills": ["skills/"],
+  "commands": ["commands/"],
+  "agents": ["agents/"]
+}

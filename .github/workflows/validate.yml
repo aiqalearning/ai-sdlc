@@ -1,0 +1,33 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    name: Validate plugin + demo app
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate plugin manifests, skills, commands, MCP config
+        run: node bin/validate.js
+
+      - name: Guard hook syntax
+        run: python3 -c "import ast; ast.parse(open('bin/hooks/guard-destructive.py').read())"
+
+      - name: Demo app — install
+        working-directory: demo-app
+        run: npm install
+
+      - name: Demo app — Playwright E2E
+        working-directory: demo-app
+        run: |
+          npx playwright install --with-deps chromium
+          npx playwright test

@@ -1,0 +1,27 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Playwright
+demo-app/test-results/
+demo-app/playwright-report/
+demo-app/blob-report/
+demo-app/.playwright/
+**/playwright/.cache/
+
+# Build / runtime
+dist/
+build/
+*.log
+.DS_Store
+
+# Pipeline working state
+.sdlc/
+work/

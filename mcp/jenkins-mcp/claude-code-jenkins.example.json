@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "jenkins": {
+      "command": "uvx",
+      "args": ["mcp-jenkins"],
+      "env": {
+        "JENKINS_URL": "${env:JENKINS_URL}",
+        "JENKINS_USERNAME": "${env:JENKINS_USER}",
+        "JENKINS_PASSWORD": "${env:JENKINS_TOKEN}"
+      }
+    }
+  }
+}

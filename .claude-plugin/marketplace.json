@@ -1,0 +1,16 @@
+{
+  "name": "ai-sdlc-marketplace",
+  "owner": {
+    "name": "AI-SDLC"
+  },
+  "metadata": {
+    "description": "AI-assisted SDLC plugin marketplace: Jira -> code -> verify -> Playwright -> Jenkins -> merge."
+  },
+  "plugins": [
+    {
+      "name": "ai-sdlc",
+      "source": "./plugins/ai-sdlc",
+      "description": "Drives a Jira issue to a merged PR: generate code, verify the app runs, generate Playwright E2E, run the automation on Jenkins, and merge to main once the report is green. Commands: /sdlc:intake, /sdlc:implement, /sdlc:verify, /sdlc:automate, /sdlc:run-ci, /sdlc:ship, /sdlc:run."
+    }
+  ]
+}
