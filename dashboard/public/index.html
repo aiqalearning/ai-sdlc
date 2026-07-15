@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI-SDLC — Pipeline Control</title>
+<style>
+  :root {
+    --ground:#f3f5f8; --panel:#fff; --panel-2:#f7f9fb; --ink:#12151b; --muted:#6b7484;
+    --hair:#e2e7ee; --accent:#c6871a; --accent-ink:#a5700f; --go:#1f9d55; --go-wash:#e4f4ea;
+    --stop:#cf3b41; --am:#c6871a; --idle:#cfd6e0;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){:root{
+    --ground:#0f1216;--panel:#161a20;--panel-2:#1b2028;--ink:#e7ebf1;--muted:#8b93a2;
+    --hair:#262c35;--accent:#f0b429;--accent-ink:#f5c959;--go:#46c777;--go-wash:#16271d;
+    --stop:#f0575c;--am:#f0b429;--idle:#333b46;}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);line-height:1.55}
+  .wrap{max-width:1080px;margin:0 auto;padding:24px}
+  header{border-bottom:1px solid var(--hair);background:var(--panel-2)}
+  h1{font-size:20px;margin:0;letter-spacing:-.02em}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-ink);font-weight:600}
+  .sub{color:var(--muted);font-size:13px;margin-top:4px}
+  .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:18px 0}
+  select,button{font-family:var(--sans);font-size:14px;padding:8px 12px;border-radius:8px;border:1px solid var(--hair);background:var(--panel);color:var(--ink)}
+  button{cursor:pointer;font-weight:600}
+  button.run{background:var(--accent);color:#1a1205;border-color:var(--accent)}
+  button.run:disabled{opacity:.5;cursor:not-allowed}
+  button.stop{color:var(--stop)}
+  label.chk{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:8px}
+  @media (max-width:820px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--hair);border-radius:12px;padding:18px}
+  .card h2{font-size:12px;font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0 0 14px}
+  /* tracker */
+  .stage{display:grid;grid-template-columns:34px 1fr;gap:14px}
+  .rail{display:flex;flex-direction:column;align-items:center}
+  .node{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-size:12px;font-weight:700;
+        border:1.5px solid var(--idle);color:var(--muted);background:transparent;transition:.3s}
+  .track{width:2px;flex:1;background:var(--idle);min-height:16px}
+  .stage.done .node{border-color:var(--go);background:var(--go-wash);color:var(--go)}
+  .stage.active .node{border-color:var(--accent);background:transparent;color:var(--accent-ink);animation:pulse 1.1s infinite}
+  .stage.done .track{background:var(--go)}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(240,180,41,.5)}50%{box-shadow:0 0 0 6px rgba(240,180,41,0)}}
+  .sbody{padding-bottom:14px}
+  .sbody .st{font-weight:640;font-size:15px}
+  .sbody .cmd{font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .badge{font-family:var(--mono);font-size:10.5px;padding:2px 7px;border-radius:5px;margin-left:8px;vertical-align:middle}
+  .badge.done{background:var(--go-wash);color:var(--go)}
+  .badge.active{background:transparent;border:1px solid var(--accent);color:var(--accent-ink)}
+  /* log */
+  #log{font-family:var(--mono);font-size:12px;line-height:1.7;max-height:420px;overflow:auto;background:#0d1014;color:#c7cdd6;border-radius:8px;padding:12px}
+  #log .tool{color:#f0b429}
+  #log .txt{color:#c7cdd6}
+  #log .meta{color:#6fb3d6}
+  #log .stderr{color:#f0575c}
+  #log .done{color:#46c777}
+  #log .ok{color:#6b7484}
+  #log .heartbeat{color:#8b93a2;font-style:italic}
+  .links{display:flex;flex-direction:column;gap:8px;font-size:13px}
+  .links a{color:var(--accent-ink);word-break:break-all}
+  .links .k{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+  .empty{color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <span class="eyebrow">AI-SDLC · pipeline control</span>
+  <h1>Drive the pipeline</h1>
+  <div class="sub">Pick a ticket and run it. This triggers the real Claude Code pipeline (<span style="font-family:var(--mono)">/sdlc:run</span>) — same skills, same Jenkins, same gate.</div>
+</div></header>
+
+<div class="wrap">
+  <div class="controls">
+    <select id="ticket"></select>
+    <label class="chk"><input type="checkbox" id="dry" checked /> dry run (stop before ship)</label>
+    <button class="run" id="runBtn">▶ Run pipeline</button>
+    <button class="stop" id="stopBtn" disabled>■ Stop</button>
+    <span id="binWarn" class="empty"></span>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Pipeline</h2>
+      <div id="tracker"></div>
+    </div>
+    <div class="card">
+      <h2>Live log</h2>
+      <div id="log"><span class="empty">Idle. Pick a ticket and hit Run.</span></div>
+      <div style="margin-top:16px">
+        <h2>Artifacts &amp; links</h2>
+        <div id="links" class="links"><span class="empty">No run yet.</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const STAGES = [
+  {id:'intake',label:'Intake',cmd:'/sdlc:intake'},
+  {id:'implement',label:'Implement',cmd:'/sdlc:implement'},
+  {id:'verify',label:'Verify',cmd:'/sdlc:verify'},
+  {id:'automate',label:'Automate',cmd:'/sdlc:automate'},
+  {id:'run-ci',label:'Run CI',cmd:'/sdlc:run-ci'},
+  {id:'ship',label:'Ship',cmd:'/sdlc:ship'},
+];
+let currentTicket=null, statusTimer=null, es=null, running=false;
+
+const $=(s)=>document.querySelector(s);
+const logEl=$('#log'), trackerEl=$('#tracker'), linksEl=$('#links');
+
+function renderTracker(stages, activeIdx){
+  trackerEl.innerHTML = stages.map((s,i)=>{
+    const done=s.done, active=(i===activeIdx && !done);
+    const cls=done?'done':(active?'active':'');
+    const badge=done?'<span class="badge done">done</span>':(active?'<span class="badge active">running</span>':'');
+    const last=i===stages.length-1;
+    return `<div class="stage ${cls}">
+      <div class="rail"><div class="node">${done?'✓':i+1}</div>${last?'':'<div class="track"></div>'}</div>
+      <div class="sbody"><div class="st">${s.label}${badge}</div><div class="cmd">${STAGES[i].cmd}</div></div>
+    </div>`;
+  }).join('');
+}
+function renderLinks(f){
+  const rows=[];
+  if(f.branch) rows.push(['branch',f.branch]);
+  if(f.verdict) rows.push(['ci verdict', (f.passRate?`${f.verdict} · ${f.passRate}`:f.verdict)]);
+  if(f.jenkins) rows.push(['jenkins',`<a href="${f.jenkins}" target="_blank">${f.jenkins}</a>`]);
+  if(f.pr) rows.push(['pull request',`<a href="${f.pr}" target="_blank">${f.pr}</a>`]);
+  if(f.mergeSha) rows.push(['merge',f.mergeSha.slice(0,10)]);
+  linksEl.innerHTML = rows.length? rows.map(([k,v])=>`<div><span class="k">${k}</span><br>${v}</div>`).join('')
+    : '<span class="empty">No artifacts yet.</span>';
+}
+async function pollStatus(){
+  if(!currentTicket) return;
+  try{
+    const s=await (await fetch(`/api/status/${currentTicket}`)).json();
+    const activeIdx = s.stages.findIndex(x=>!x.done);
+    renderTracker(s.stages, running?activeIdx:-1);
+    renderLinks(s.facts);
+  }catch{}
+}
+let hbEl=null;
+function addLog(ev){
+  const first = logEl.querySelector('.empty'); if(first) logEl.innerHTML='';
+  if(ev.kind==='heartbeat'){
+    if(!hbEl){ hbEl=document.createElement('div'); hbEl.className='heartbeat'; logEl.appendChild(hbEl); }
+    hbEl.textContent=ev.text; logEl.scrollTop=logEl.scrollHeight; return;
+  }
+  if(hbEl){ hbEl.remove(); hbEl=null; } // a real event arrived → drop the sticky heartbeat
+  const map={tool:'tool',meta:'meta',stderr:'stderr',done:'done',result:'done',ok:'ok'};
+  const cls=map[ev.kind]||'txt';
+  const prefix = ev.kind==='tool'?'🔧 ':ev.kind==='done'?'● ':'';
+  const div=document.createElement('div'); div.className=cls; div.textContent=prefix+ev.text;
+  logEl.appendChild(div); logEl.scrollTop=logEl.scrollHeight;
+}
+
+async function loadTickets(){
+  const {tickets}=await (await fetch('/api/tickets')).json();
+  $('#ticket').innerHTML = tickets.map(t=>`<option>${t}</option>`).join('') || '<option>(no tickets)</option>';
+  const h=await (await fetch('/api/health')).json();
+  if(!h.claudeBin) $('#binWarn').textContent='⚠ Claude binary not found — set CLAUDE_BIN';
+  currentTicket=$('#ticket').value; pollStatus();
+}
+$('#ticket').addEventListener('change',()=>{currentTicket=$('#ticket').value; logEl.innerHTML='<span class="empty">Idle.</span>'; pollStatus();});
+
+$('#runBtn').addEventListener('click', async ()=>{
+  const ticket=$('#ticket').value;
+  const dry=$('#dry').checked;
+  logEl.innerHTML='';
+  running=true; $('#runBtn').disabled=true; $('#stopBtn').disabled=false;
+  const r=await (await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ticket,stopBeforeShip:dry})})).json();
+  if(r.error){ addLog({kind:'stderr',text:r.error}); running=false; $('#runBtn').disabled=false; $('#stopBtn').disabled=true; return; }
+  currentTicket=ticket;
+  if(es) es.close();
+  es=new EventSource(`/api/events/${r.runId}`);
+  es.onmessage=(m)=>{ const ev=JSON.parse(m.data); addLog(ev); if(ev.kind==='done'){ running=false; $('#runBtn').disabled=false; $('#stopBtn').disabled=true; pollStatus(); } };
+  if(statusTimer) clearInterval(statusTimer);
+  statusTimer=setInterval(pollStatus, 2500);
+  window._run=r.runId;
+});
+$('#stopBtn').addEventListener('click', async ()=>{ if(window._run) await fetch(`/api/stop/${window._run}`,{method:'POST'}); });
+
+loadTickets();
+setInterval(pollStatus, 4000);
+</script>
+</body>
+</html>
